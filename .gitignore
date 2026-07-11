@@ -1,0 +1,17 @@
+# System Binaries
+bin/
+*.bin
+*.elf
+
+# Intermediate Objects
+src/*.o
+*.o
+*.sys
+
+# Editor and OS Meta
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*~
