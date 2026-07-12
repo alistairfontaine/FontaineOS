@@ -36,16 +36,22 @@ void task_alpha_routine() {
    A lightweight, bare-metal string comparison utility.
    Returns true if both character pointers contain the exact same text string.
 */
+/*
+   A lightweight, bare-metal string comparison utility.
+   Fixed: Enforces strict AND logic bounds so matching stops exactly at the null terminator!
+*/
 bool mystrcmp(const char* str1, const char* str2) {
     int i = 0;
-    while (str1[i] != '\0' || str2[i] != '\0') {
+    while (str1[i] != '\0' && str2[i] != '\0') {
         if (str1[i] != str2[i]) {
             return false;
         }
         i++;
     }
-    return true;
+    // Double check that both strings terminated at the exact same index length position
+    return (str1[i] == '\0' && str2[i] == '\0');
 }
+
 
 /*
    Thread Task Beta (Our Live Kernel Command Shell Module!).
