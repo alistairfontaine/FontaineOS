@@ -11,7 +11,10 @@ align 4
 
 section .text
 global _start
+global isr0_handler_stub
+
 extern kernel_main
+extern divide_by_zero_handler
 
 _start:
     ; Hand over our newly allocated stack boundary pointer to the CPU stack register
@@ -20,11 +23,20 @@ _start:
     ; Jump directly into our main freestanding C++ environment kernel loop
     call kernel_main
 
-    ; Safety fallback: if kernel_main ever returns, freeze the processor execution
+    ; Safety fallback loop
     cli
 halt_loop:
     hlt
     jmp halt_loop
+
+; This is our raw low-level hardware entry stub for Interrupt 0
+isr0_handler_stub:
+    pusha                    ; Push all general-purpose CPU registers onto the stack to save their state
+
+    call divide_by_zero_handler ; Jump directly into our C++ error log function
+
+    popa                     ; Restore all general-purpose CPU registers back to normal state
+    iret                     ; Interrupt Return: pops the saved CPU flags and tracking registers back on the fly
 
 section .bss
 align 16
