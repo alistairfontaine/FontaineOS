@@ -1,3 +1,9 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/logo.png">
+  <source media="(prefers-color-scheme: light)" srcset="assets/logo2.png">
+  <img alt="FontaineOS Core Architecture Banner Logo" src="assets/logo.png" width="100%">
+</picture>
+
 # FontaineOS
 
 FontaineOS is an advanced, bare-metal x86 micro-kernel operating system built entirely from scratch using Freestanding C++20 and x86 Assembly. Operating with absolutely zero external runtime dependencies and completely divorced from the standard library (`libstdc++`/`glibc`), it manages raw x86 CPU systems, configures physical registers, routes asynchronous hardware lines, and orchestrates an interactive block-storage terminal workstation [x].
@@ -28,14 +34,16 @@ FontaineOS is an advanced, bare-metal x86 micro-kernel operating system built en
 * **[x] Bare-Metal Heap Framework:** Deploys a First-Fit linked-list block tracker to drive working, byte-aligned `kmalloc()` and `kfree()` allocators [x].
 
 ### 🧵 Phase 4: Multitasking & Concurrent Schedulers
-* **[x] Thread Control Block (TCB) Layer:** Spawns parallel runtime threads with completely isolated, heap-allocated 1KB task execution stacks [x].
-* **[x] Cooperative Context Switcher:** Implements an x86 stack-frame saving mechanism to backup general-purpose registers, cycling thread execution states concurrently [x].
+* **[x] Thread Control Block (TCB) Layer:** Spawns parallel runtime threads with completely isolated, heap-allocated 4KB task execution stacks to prevent IRQ frame overflow [x].
+* **[x] Assembly-Backed Context Switcher:** Implements a dedicated x86 assembly context-switching routine (`context_switch`) inside `boot.s` to guarantee register state backup safety and bypass `-O2` function-prologue stack fragmentation [x].
+* **[x] Concurrent Thread Bootstrapping:** Deploys a thread bootstrap wrapper (`thread_bootstrap`) that cleanly re-enables hardware interrupts upon task entry, driving active execution loops [x].
 
 ### 💾 Phase 5: Storage Architecture & Shell Workstation (Built Beyond Original Roadmap)
 * **[x] Atomic Interrupt-Level Parser Shell:** Pulls the interactive prompt processing out of loose user loops and mounts it entirely inside the hardware interrupt ring [x].
-* **[x] System Diagnostics Commands:** `uptime` reports wall time straight off the 100Hz PIT tick counter, and `meminfo` walks the PMM allocation bitmap live to report used/free physical pages plus the active scheduler thread count [x].
+* **[x] Dynamic System Diagnostics Commands:** Built an active `uptime` tracker reporting whole seconds plus raw hardware ticks, alongside a `meminfo` command that walks the PMM bitmap to expose physical page utilisation and scheduler thread pools live [x].
 * **[x] ATA/IDE Hard Drive Block Driver:** Communicates directly with motherboard disk ports (`0x1F0`–`0x1F7`) using 28-bit Logical Block Addressing (LBA) [x].
-* **[x] Specialized Read/Write Hardware Wait Synchronization:** Solves x86 deadlock traps by implementing separate, dedicated synchronization loops: `ata_wait_read()` (polling BSY + DRQ) and `ata_wait_write()` (polling BSY exclusively) [x].
+* **[x] Isolated Hardware Read/Write Waits:** Separates hardware polling loops into `ata_wait_read()` (polling BSY + DRQ) and `ata_wait_write()` (polling BSY exclusively) to eliminate x86 deadlock grids [x].
+* **[x] Native Device Interrupt Gating:** Intercepts port `0x3F6` (Device Control Register) to cleanly mask out unhandled IRQ 14 controller completion interrupts, avoiding silent triple-fault reboots [x].
 * **[x] Flat Global I/O Landing Pads:** Completely eliminates stack alignment drift under high-level compiler optimizations by routing block bursts into static, 4-byte aligned global memory arrays (`ata_io_buffer`, `disk_test_pad`) [x].
 * **[x] Universal Terminal Scrolling Engine:** Manages video buffer layouts dynamically by checking rows (`cursor_position >= 4000`), executing memory block copies to shift rows upward, and blanking out the bottom line cleanly [x].
 
