@@ -81,13 +81,32 @@ void task_beta_routine() {
             local_cmd[c_idx] = '\0';
 
             // Step 2: Instantly free the keyboard driver buffer layout so it can take new keys
-                        clear_shell_command();
+            clear_shell_command();
             asm volatile("sti");
+
+            /* Step 3: Run our string evaluations safely on our own local stack copy */
+            if (mystrcmp(local_cmd, "help") == true) {
+                const char* reply = ">> [FontaineOS Terminal Help: Commands are 'help' and 'clear']";
+                int i = 0;
+                while (reply[i] != '\0') {
+                    video_memory[1760 + (i * 2)] = reply[i]; // Print on Row 11
+                    video_memory[1760 + (i * 2) + 1] = 0x0D; // Purple style
+                    i++;
+                }
+            }
+            else if (mystrcmp(local_cmd, "clear") == true) {
+                for (int i = 1600; i < 4000; i = i + 2) {
+                    video_memory[i] = ' ';
+                    video_memory[i + 1] = 0x07; // Default style reset
+                }
+                cursor_position = 1600;
+            }
         }
 
         for (uint32_t delay = 0; delay < 2000000; delay++) { asm volatile(""); }
     }
 }
+
 
 
 extern "C" void kernel_main() {
