@@ -11,15 +11,17 @@ uint32_t count_alpha = 0;
 
 /*
    Thread Task Alpha.
-   Runs concurrently on its own private stack and prints system cycle counts.
+   Runs concurrently on its own private stack and prints system cycle counts on row 3.
 */
 void task_alpha_routine() {
     volatile char* video_memory = (volatile char*)0xB8000;
     while (true) {
         count_alpha = count_alpha + 1;
         char state_char = '0' + (count_alpha % 10);
-        video_memory[468] = state_char;
-        video_memory[469] = 0x0A; // Light Green style ticker
+
+        // Fixed: Explicit bracket offsets to write to row 3 (offset index 320)
+        video_memory[320] = state_char;
+        video_memory[321] = 0x0A; // Light Green style ticker
 
         for (uint32_t delay = 0; delay < 10000000; delay++) { asm volatile(""); }
     }
@@ -38,8 +40,10 @@ void task_beta_routine() {
         char* command = get_shell_command();
 
         if (command != nullptr) {
-            // Check command target: Custom 'help' command match routing
-            if (command[0] == 'h' && command[1] == 'e' && command[2] == 'l' && command[3] == 'l' && command[4] == 'p') {
+            /*
+               Explicit character array parsing checking individual indices.
+            */
+            if (command[0] == 'h' && command[1] == 'e' && command[2] == 'l' && command[3] == 'p') {
                 const char* reply = ">> [FontaineOS Terminal Help: Commands are 'help' and 'clear']";
                 int i = 0;
                 while (reply[i] != '\0') {
@@ -48,7 +52,7 @@ void task_beta_routine() {
                     i++;
                 }
             }
-            // Check command target: Custom 'clear' command match routing
+            // Check command target index: Custom 'clear' command match routing
             else if (command[0] == 'c' && command[1] == 'l' && command[2] == 'e' && command[3] == 'a' && command[4] == 'r') {
                 // Clear out the bottom half rows of our display grid frame arrays
                 for (int i = 800; i < 4000; i = i + 2) {
