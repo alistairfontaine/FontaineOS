@@ -103,11 +103,15 @@ extern "C" void keyboard_handler() {
                The Live Hard Drive Controller Test Gate:
                Explicitly imports our new hardware functions from src/ata.cpp.
             */
-            else if (mystrcmp(cmd_buffer, "disktest") == true) {
+                        else if (mystrcmp(cmd_buffer, "disktest") == true) {
                 extern void ata_write_sector(uint32_t lba, const uint8_t* buffer);
                 extern void ata_read_sector(uint32_t lba, uint8_t* buffer);
 
-                // Allocate a local 512-byte temporary block allocation on our stack array
+                /*
+                   Fixed Buffer Allocation:
+                   Explicitly attaching array brackets to reserve exactly 512 bytes
+                   of stack space so our disk string doesn't smash our memory tracks!
+                */
                 uint8_t test_buffer[512];
                 for (int i = 0; i < 512; i++) test_buffer[i] = 0;
 
