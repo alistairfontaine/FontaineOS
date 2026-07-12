@@ -105,7 +105,6 @@ extern "C" void keyboard_handler() {
                     video_memory[cursor_position] = reply[i];
                     video_memory[cursor_position + 1] = 0x0D; // Purple style font
                     cursor_position = cursor_position + 2;
-                    scroll_screen();
                     i++;
                 }
                 cursor_position = ((cursor_position / 160) + 1) * 160;
@@ -146,7 +145,6 @@ extern "C" void keyboard_handler() {
                     video_memory[cursor_position] = (char)v_pad[i];
                     video_memory[cursor_position + 1] = 0x0D; // Purple text style
                     cursor_position = cursor_position + 2;
-                    scroll_screen();
                     i++;
                 }
                 cursor_position = ((cursor_position / 160) + 1) * 160;
@@ -159,7 +157,6 @@ extern "C" void keyboard_handler() {
                     video_memory[cursor_position] = error_reply[i];
                     video_memory[cursor_position + 1] = 0x0D; // Purple style font
                     cursor_position = cursor_position + 2;
-                    scroll_screen();
                     i++;
                 }
                 cursor_position = ((cursor_position / 160) + 1) * 160;
