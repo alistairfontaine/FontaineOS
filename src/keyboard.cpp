@@ -59,6 +59,32 @@ extern "C" {
     }
 }
 
+/*
+   The Universal Terminal Scrolling Engine.
+   If our text cursor slips past the 25 visible rows (4000 bytes matrix space),
+   we shift all character data blocks upward by exactly 1 row (160 bytes)
+   and clear out the newly allocated bottom row line container.
+*/
+static void scroll_screen() {
+    volatile char* video_memory = (volatile char*)0xB8000;
+
+    if (cursor_position >= 4000) {
+        // Shift rows 1 through 24 upward by copying their data to the row right above them
+        for (int i = 0; i < 3840; i++) {
+            video_memory[i] = video_memory[i + 160];
+        }
+
+        // Blank out the absolute bottom line completely with empty spacer values
+        for (int i = 3840; i < 4000; i = i + 2) {
+            video_memory[i] = ' ';
+            video_memory[i + 1] = 0x07; // Reset to standard style gray color formatting
+        }
+
+        // Reposition our hardware prompt cursor to sit safely at the start of the final row line
+        cursor_position = 3840;
+    }
+}
+
 extern "C" void keyboard_handler() {
     uint8_t scancode = inb(0x60);
 
@@ -70,6 +96,7 @@ extern "C" void keyboard_handler() {
 
             volatile char* video_memory = (volatile char*)0xB8000;
             cursor_position = ((cursor_position / 160) + 1) * 160;
+            scroll_screen();
 
             if (mystrcmp(cmd_buffer, "help") == true) {
                 const char* reply = ">> [FontaineOS Help: Commands are 'help', 'clear', and 'disktest']";
@@ -78,9 +105,11 @@ extern "C" void keyboard_handler() {
                     video_memory[cursor_position] = reply[i];
                     video_memory[cursor_position + 1] = 0x0D; // Purple style font
                     cursor_position = cursor_position + 2;
+                    scroll_screen();
                     i++;
                 }
                 cursor_position = ((cursor_position / 160) + 1) * 160;
+                scroll_screen();
             }
             else if (mystrcmp(cmd_buffer, "clear") == true) {
                 for (int i = 1600; i < 4000; i = i + 2) {
@@ -111,20 +140,17 @@ extern "C" void keyboard_handler() {
                 // Stream Sector 1 directly back off the IDE bus into our global buffer
                 ata_read_sector(1, disk_test_pad);
 
-                /*
-                   Fixed Volatile Pointer Mapping:
-                   Forces the print scanner loop to explicitly evaluate the actual RAM memory addresses,
-                   bypassing the aggressive -O2 register caching layers completely!
-                */
                 volatile uint8_t* v_pad = (volatile uint8_t*)disk_test_pad;
                 int i = 0;
                 while (v_pad[i] != 0 && i < 512) {
                     video_memory[cursor_position] = (char)v_pad[i];
                     video_memory[cursor_position + 1] = 0x0D; // Purple text style
                     cursor_position = cursor_position + 2;
+                    scroll_screen();
                     i++;
                 }
                 cursor_position = ((cursor_position / 160) + 1) * 160;
+                scroll_screen();
             }
             else if (cmd_buffer[0] != '\0') {
                 const char* error_reply = ">> Command not found! Type 'help' for options.";
@@ -133,9 +159,11 @@ extern "C" void keyboard_handler() {
                     video_memory[cursor_position] = error_reply[i];
                     video_memory[cursor_position + 1] = 0x0D; // Purple style font
                     cursor_position = cursor_position + 2;
+                    scroll_screen();
                     i++;
                 }
                 cursor_position = ((cursor_position / 160) + 1) * 160;
+                scroll_screen();
             }
 
             clear_shell_command();
@@ -155,6 +183,7 @@ extern "C" void keyboard_handler() {
             video_memory[cursor_position] = character;
             video_memory[cursor_position + 1] = 0x0E; // Yellow font
             cursor_position = cursor_position + 2;
+            scroll_screen();
         }
     }
     outb(0x20, 0x20);
