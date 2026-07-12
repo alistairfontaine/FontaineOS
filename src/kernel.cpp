@@ -5,56 +5,63 @@
 #include "vmm.h"
 #include "heap.h"
 #include "task.h"
+#include "keyboard.h"
 
-// Shared global counters for our threads to update safely
 uint32_t count_alpha = 0;
-uint32_t count_beta = 0;
 
 /*
    Thread Task Alpha.
-   This code runs on its own private stack and updates its state counter on row 3.
+   Runs concurrently on its own private stack and prints system cycle counts.
 */
 void task_alpha_routine() {
     volatile char* video_memory = (volatile char*)0xB8000;
-
     while (true) {
         count_alpha = count_alpha + 1;
         char state_char = '0' + (count_alpha % 10);
+        video_memory[468] = state_char;
+        video_memory[469] = 0x0A; // Light Green style ticker
 
-        // Write safely to a single character slot on row 3 (offset index 320 + 104 bytes)
-        video_memory[424] = state_char;
-        video_memory[425] = 0x0A; // Light Green style
-
-        /*
-           Bulletproof, warning-free delay loop for modern C++20.
-           We use a basic loop block with an empty assembly volatile spacer
-           to stop the compiler from throwing a deprecated assignment warning.
-        */
-        for (uint32_t delay = 0; delay < 5000000; delay++) {
-            asm volatile("");
-        }
+        for (uint32_t delay = 0; delay < 10000000; delay++) { asm volatile(""); }
     }
 }
 
 /*
-   Thread Task Beta.
-   This code runs on its own private stack and updates its state counter on row 4.
+   Thread Task Beta (Our Live Kernel Command Shell Module!).
+   Monitors our global keyboard buffer. If you type 'help' or 'clear',
+   the kernel executes the corresponding custom script lines in real-time!
 */
 void task_beta_routine() {
     volatile char* video_memory = (volatile char*)0xB8000;
 
     while (true) {
-        count_beta = count_beta + 1;
-        char state_char = '0' + (count_beta % 10);
+        // Query if our keyboard engine has caught a fresh instruction string command
+        char* command = get_shell_command();
 
-        // Write safely to a single character slot on row 4 (offset index 480 + 104 bytes)
-        video_memory[584] = state_char;
-        video_memory[585] = 0x0D; // Light Purple style
+        if (command != nullptr) {
+            // Check command target: Custom 'help' command match routing
+            if (command[0] == 'h' && command[1] == 'e' && command[2] == 'l' && command[3] == 'l' && command[4] == 'p') {
+                const char* reply = ">> [FontaineOS Terminal Help: Commands are 'help' and 'clear']";
+                int i = 0;
+                while (reply[i] != '\0') {
+                    video_memory[1120 + (i * 2)] = reply[i]; // Print on row 8
+                    video_memory[1120 + (i * 2) + 1] = 0x0D; // Purple output style
+                    i++;
+                }
+            }
+            // Check command target: Custom 'clear' command match routing
+            else if (command[0] == 'c' && command[1] == 'l' && command[2] == 'e' && command[3] == 'a' && command[4] == 'r') {
+                // Clear out the bottom half rows of our display grid frame arrays
+                for (int i = 800; i < 4000; i = i + 2) {
+                    video_memory[i] = ' ';
+                    video_memory[i + 1] = 0x07;
+                }
+            }
 
-        /* Bulletproof warning-free delay loop */
-        for (uint32_t delay = 0; delay < 5000000; delay++) {
-            asm volatile("");
+            // Wipe our buffer matrices clean so we can take the next prompt line instruction
+            clear_shell_command();
         }
+
+        for (uint32_t delay = 0; delay < 2000000; delay++) { asm volatile(""); }
     }
 }
 
@@ -70,48 +77,42 @@ extern "C" void kernel_main() {
     /* Step 2: Initialize the Multitasking Scheduler Layer */
     init_multitasking();
 
-    /* Step 3: Spawn our dynamic parallel threads */
+    /* Step 3: Spawn our parallel runtime threads */
     create_thread(task_alpha_routine);
     create_thread(task_beta_routine);
 
-    /* Render Baseline Screen Texts ONCE before interrupts fire to eliminate layout drift */
+    /* Render Baseline Screen Texts ONCE before loops execute to eliminate memory drift */
     volatile char* video_memory = (volatile char*)0xB8000;
 
     const char* msg_master = "FontaineOS Architecture Complete! Task Scheduler Loops Active.";
-    const char* msg_alpha  = "[Task Alpha Running Concurrently] Cycle State Tick: ";
-    const char* msg_beta   = "[Task Beta Running Concurrently] Cycle State Tick:  ";
+    const char* msg_alpha  = "[Task Alpha Running Concurrently] Cycle State Ticking: ";
+    const char* msg_shell  = "FontaineOS Console Interface Live. Type 'help' or 'clear':";
 
     int i = 0;
     while (msg_master[i] != '\0') {
-        video_memory[160 + (i * 2)] = msg_master[i];
-        video_memory[160 + (i * 2) + 1] = 0x0E; // Bright Gold text style
+        video_memory[0 + (i * 2)] = msg_master[i];
+        video_memory[0 + (i * 2) + 1] = 0x0E; // Gold text style on Row 1
         i++;
     }
 
     i = 0;
     while (msg_alpha[i] != '\0') {
         video_memory[320 + (i * 2)] = msg_alpha[i];
-        video_memory[320 + (i * 2) + 1] = 0x0A; // Light Green style
+        video_memory[320 + (i * 2) + 1] = 0x0A; // Light Green style on Row 3
         i++;
     }
 
     i = 0;
-    while (msg_beta[i] != '\0') {
-        video_memory[480 + (i * 2)] = msg_beta[i];
-        video_memory[480 + (i * 2) + 1] = 0x0D; // Light Purple style
+    while (msg_shell[i] != '\0') {
+        video_memory[640 + (i * 2)] = msg_shell[i];
+        video_memory[640 + (i * 2) + 1] = 0x0B; // Light Cyan style on Row 5
         i++;
     }
 
-    /*
-       Step 4: Enable Hardware Interrupts globally.
-       The physical motherboard timer at 100Hz will now act as our primary
-       multitasking engine, swapping stacks cleanly behind the scenes.
-    */
+    /* Step 4: Enable Hardware Interrupts globally */
     asm volatile("sti");
 
-    /* Main Core Master Loop Timeline */
     while (true) {
-        // Relax the main thread, letting the timer interrupt orchestrate the tasks
         asm volatile("hlt");
     }
 }

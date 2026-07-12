@@ -1,87 +1,72 @@
 #include "keyboard.h"
-#include "timer.h" // Gives us low-level outb access
+#include "timer.h"
 
-/*
-   Low-level hardware bus communications.
-   Reads a single 8-bit byte directly from a motherboard hardware port address bus line.
-*/
 inline uint8_t inb(uint16_t port) {
     uint8_t ret;
     asm volatile ("inb %1, %0" : "=a"(ret) : "Nd"(port));
     return ret;
 }
 
-// Global text cursor offset tracking location inside our 80x25 screen grid array
-uint32_t cursor_position = 160; // Start printing on the second line row space
+uint32_t cursor_position = 160;
 
-/*
-   The primary layout lookup array mapping standard US Keyboard Scancodes
-   safely into universal ASCII text bytes.
-*/
+// Allocate a live memory buffer array to track what you are typing
+char cmd_buffer[64];
+uint32_t cmd_index = 0;
+volatile uint8_t command_ready_flag = 0;
+
+/* US Keyboard Map Index */
 const char kbd_us[128] = {
     0,  27, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b',
-  '\t', /* Tab */
-  'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\n', /* Enter */
-    0, /* 29   - Control */
-  'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'', '`',   0, /* Left shift */
- '\\', 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/',   0, /* Right shift */
-  '*',
-    0, /* Alt */
-  ' ', /* Space bar */
-    0, /* Caps lock */
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* F1 - F10 keys */
-    0, /* Num lock */
-    0, /* Scroll lock */
-    0, /* Home key */
-    0, /* Up Arrow */
-    0, /* Page Up */
-  '-',
-    0, /* Left Arrow */
-    0,
-    0, /* Right Arrow */
-  '+',
-    0, /* End key */
-    0, /* Down Arrow */
-    0, /* Page Down */
-    0, /* Insert Key */
-    0, /* Delete Key */
-    0, 0, 0,
-    0, /* F11 Key */
-    0, /* F12 Key */
-    0, /* All others undefined */
+  '\t', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\n',
+    0, 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'', '`',   0,
+ '\\', 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/',   0, '*',   0, ' '
 };
 
-/*
-   The target C++ routine executed on every single hardware keyboard interrupt press event.
-*/
+char* get_shell_command() {
+    if (command_ready_flag == 1) {
+        return cmd_buffer;
+    }
+    return nullptr;
+}
+
+void clear_shell_command() {
+    for (int i = 0; i < 64; i++) cmd_buffer[i] = 0;
+    cmd_index = 0;
+    command_ready_flag = 0;
+}
+
 extern "C" void keyboard_handler() {
-    // 1. Read the scancode byte from the physical keyboard hardware data port
     uint8_t scancode = inb(0x60);
 
-    /*
-       If the top bit of the byte is set (scancode & 0x80), it means the key
-       was RELEASED rather than pressed. We only want to handle key PRESSES.
-    */
     if (!(scancode & 0x80)) {
-        // Look up the matching readable letter inside our ASCII map array
         char character = kbd_us[scancode];
 
-        // If the key has a valid ASCII mapping, print it onto the VGA text buffer grid
-        if (character != 0) {
+        if (character == '\n') {
+            // User hit ENTER. Lock the buffer and flag that a command is ready to parse!
+            cmd_buffer[cmd_index] = '\0';
+            command_ready_flag = 1;
+
+            // Advance cursor to the start of the next blank row line
+            cursor_position = ((cursor_position / 160) + 1) * 160;
+        }
+        else if (character == '\b' && cmd_index > 0) {
+            // Handle Backspace operations
+            cmd_index = cmd_index - 1;
+            cmd_buffer[cmd_index] = 0;
+            cursor_position = cursor_position - 2;
             volatile char* video_memory = (volatile char*)0xB8000;
+            video_memory[cursor_position] = ' ';
+        }
+        else if (character != 0 && cmd_index < 63) {
+            // Append the fresh letter straight into our active tracking array
+            cmd_buffer[cmd_index] = character;
+            cmd_index = cmd_index + 1;
 
-            // Render the letter right where our tracking cursor currently sits
+            volatile char* video_memory = (volatile char*)0xB8000;
             video_memory[cursor_position] = character;
-            video_memory[cursor_position + 1] = 0x0E; // Brilliant Yellow style font
-
-            // Advance the cursor index forward by 2 bytes for the next character block
+            video_memory[cursor_position + 1] = 0x0E; // Yellow characters
             cursor_position = cursor_position + 2;
         }
     }
-
-    /*
-       End of Interrupt (EOI). We MUST send a 0x20 confirmation token byte to the
-       Master PIC port, otherwise the keyboard interface bus will lock up completely.
-    */
     outb(0x20, 0x20);
 }

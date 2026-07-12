@@ -3,13 +3,16 @@
 
 #include <stdint.h>
 
-/*
-   Wrapping our device driver hooks in an explicit extern "C" matrix
-   so the low-level assembly routing stubs can link cleanly.
-*/
 extern "C" {
     void init_keyboard();
     void keyboard_handler();
+
+    /*
+       Expose a global function to check if the user hit Enter
+       and read out the text string they typed.
+    */
+    char* get_shell_command();
+    void  clear_shell_command();
 }
 
 #endif
