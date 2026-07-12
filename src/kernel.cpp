@@ -61,9 +61,8 @@ void task_beta_routine() {
             */
             asm volatile("cli");
 
-            char local_cmd[64] = {0}; // Add '= {0}' here to wipe out all uninitialized memory garbage!
+            char local_cmd[64];
             int c_idx = 0;
-
             while (command[c_idx] != '\0' && c_idx < 63) {
                 local_cmd[c_idx] = command[c_idx];
                 c_idx++;
