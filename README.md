@@ -8,7 +8,7 @@ FontaineOS is a lightweight, bare-metal x86 micro-kernel operating system built 
 * **Strict Memory Containment:** Zero runtime allocation overhead until a secure physical paging engine is operational.
 
 ## 🗺 Chronological Roadmap
-- [ ] Phase A: Multiboot Bootloader Entrypoint Assembly & VGA Hardware Text Output Mapping
+- [x] Phase A: Multiboot Bootloader Entrypoint Assembly & VGA Hardware Text Output Mapping
 - [ ] Phase B: Global Descriptor Table (GDT) Realignment & Custom Machine Interrupt Vectors
 - [ ] Phase C: Custom System Clock PIT (Programmable Interval Timer) Timing Loops
 - [ ] Phase D: Hardware Keyboard Interrupt Line Parsing & Scancode Map Buffering
