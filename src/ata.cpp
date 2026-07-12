@@ -21,14 +21,25 @@ inline void insw(uint16_t port, void* addr, uint32_t count) {
 static uint8_t ata_io_buffer[512] __attribute__((aligned(4)));
 
 /*
-   Waits until the motherboard hard disk controller clears its Busy bit (BSY)
-   and raises its Data Request Ready flag (DRQ).
+   Dedicated Read Wait.
+   Waits until the drive stops being busy AND flags that read data is ready on the bus pins.
 */
-static void ata_wait_ready() {
+static void ata_wait_read() {
     while (inb(ATA_STATUS) & ATA_STATUS_BSY) {
         asm volatile("" : : : "memory");
     }
     while (!(inb(ATA_STATUS) & ATA_STATUS_DRQ)) {
+        asm volatile("" : : : "memory");
+    }
+}
+
+/*
+   Dedicated Write Wait.
+   We ONLY wait for the hardware to clear the Busy flag (BSY).
+   We do not check DRQ because the drive clears it immediately while baking data.
+*/
+static void ata_wait_write() {
+    while (inb(ATA_STATUS) & ATA_STATUS_BSY) {
         asm volatile("" : : : "memory");
     }
 }
@@ -42,7 +53,8 @@ extern "C" void ata_read_sector(uint32_t lba, uint8_t* buffer) {
     outb(ATA_LBA_HIGH, (uint8_t)((lba >> 16) & 0xFF));
     outb(ATA_COMMAND, ATA_CMD_READ);
 
-    ata_wait_ready();
+    // Call our dedicated read synchronization loop
+    ata_wait_read();
 
     // Stream the raw hardware sector straight into our safe global binary buffer area
     insw(ATA_DATA, ata_io_buffer, 256);
@@ -78,13 +90,9 @@ extern "C" void ata_write_sector(uint32_t lba, const uint8_t* buffer) {
     // Send the write token command
     outb(ATA_COMMAND, ATA_CMD_WRITE);
 
-    /*
-       Fixed Sequence:
-       We must feed the data words onto the bus pins immediately *before*
-       waiting, unblocking the controller's internal write cache matrix!
-    */
+    // Feed the data words onto the bus pins immediately to unblock the controller cache
     outsw(ATA_DATA, ata_io_buffer, 256);
 
-    // Now wait for the storage hardware to finish flushing the cache onto the plates
-    ata_wait_ready();
+    // Call our dedicated write synchronization loop to clear out busy cycles safely
+    ata_wait_write();
 }
