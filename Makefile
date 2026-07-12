@@ -8,10 +8,14 @@ ASFLAGS = -f elf32
 CFLAGS  = -m32 -c -ffreestanding -O2 -Wall -Wextra -fno-exceptions -fno-rtti -Iinclude -std=c++20
 LDFLAGS = -m elf_i386 -T linker.ld
 
-all: bin/fontaineos.bin
+all: bin/fontaineos.bin bin/disk.img
 
-bin/fontaineos.bin: src/boot.o src/kernel.o src/gdt.o src/idt.o src/timer.o src/keyboard.o src/pmm.o src/vmm.o src/heap.o src/task.o
-	$(LD) $(LDFLAGS) -o bin/fontaineos.bin src/boot.o src/kernel.o src/gdt.o src/idt.o src/timer.o src/keyboard.o src/pmm.o src/vmm.o src/heap.o src/task.o
+bin/fontaineos.bin: src/boot.o src/kernel.o src/gdt.o src/idt.o src/timer.o src/keyboard.o src/pmm.o src/vmm.o src/heap.o src/task.o src/ata.o
+	$(LD) $(LDFLAGS) -o bin/fontaineos.bin src/boot.o src/kernel.o src/gdt.o src/idt.o src/timer.o src/keyboard.o src/pmm.o src/vmm.o src/heap.o src/task.o src/ata.o
+
+# Automatically generate a clean 10MB virtual hard drive image if one is missing
+bin/disk.img:
+	dd if=/dev/zero of=bin/disk.img bs=1M count=10
 
 src/boot.o: src/boot.s
 	$(AS) $(ASFLAGS) src/boot.s -o src/boot.o
@@ -43,8 +47,12 @@ src/heap.o: src/heap.cpp
 src/task.o: src/task.cpp
 	$(CC) $(CFLAGS) src/task.cpp -o src/task.o
 
-run: bin/fontaineos.bin
-	qemu-system-i386 -kernel bin/fontaineos.bin
+src/ata.o: src/ata.cpp
+	$(CC) $(CFLAGS) src/ata.cpp -o src/ata.o
+
+# Fixed: Pass our newly generated disk image to QEMU's primary master IDE bus line!
+run: bin/fontaineos.bin bin/disk.img
+	qemu-system-i386 -kernel bin/fontaineos.bin -hda bin/disk.img
 
 clean:
-	rm -f src/*.o bin/*.bin
+	rm -f src/*.o bin/*.bin bin/disk.img
