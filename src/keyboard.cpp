@@ -23,23 +23,26 @@ const char kbd_us[128] = {
  '\\', 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/',   0, '*',   0, ' '
 };
 
-char* get_shell_command() {
-    if (command_ready_flag == 1) {
-        return cmd_buffer;
+/*
+   Fixed Linkage Matrix:
+   We explicitly bind these hooks to 'extern "C"' so our shell loop thread
+   can accurately resolve their memory addresses across compilation boundaries!
+*/
+extern "C" {
+    char* get_shell_command() {
+        if (command_ready_flag == 1) {
+            return cmd_buffer;
+        }
+        return nullptr;
     }
-    return nullptr;
+
+    void clear_shell_command() {
+        for (int i = 0; i < 64; i++) cmd_buffer[i] = 0;
+        cmd_index = 0;
+        command_ready_flag = 0;
+    }
 }
 
-void clear_shell_command() {
-    for (int i = 0; i < 64; i++) cmd_buffer[i] = 0;
-
-    /*
-       Fixed: Force the array tracking index completely back to 0
-       so your next command starts fresh at the beginning of the buffer string!
-    */
-    cmd_index = 0;
-    command_ready_flag = 0;
-}
 
 extern "C" void keyboard_handler() {
     uint8_t scancode = inb(0x60);
