@@ -1,0 +1,47 @@
+================================================================================
+          FONTAINE OS — LOW-LEVEL KERNEL CORE ARCHITECTURAL WHITE-PAPER
+================================================================================
+Target Hardware Base: x86 (IA-32 Platform architecture)
+Linker Mapping Base : Flat Segment Layout, Binary Entry: 0x100000 (1 Megabyte)
+
+1. SYSTEM PRIVILEGE SEGMENT MATRICES (THE GDT MAP)
+--------------------------------------------------------------------------------
+The CPU tracks code and data access permissions using the Global Descriptor Table.
+FontaineOS maps the entire 4GB physical address space linearly using a Flat Memory
+Model across two distinct protection boundaries (Rings):
+
+Selector 0x08 -> Kernel Code Segment: Base 0x0, Limit 0xFFFFF, Ring 0, Read/Execute
+Selector 0x10 -> Kernel Data Segment: Base 0x0, Limit 0xFFFFF, Ring 0, Read/Write
+Selector 0x18 -> User Code Segment  : Base 0x0, Limit 0xFFFFF, Ring 3, Read/Execute
+Selector 0x20 -> User Data Segment  : Base 0x0, Limit 0xFFFFF, Ring 3, Read/Write
+
+2. ASYNCHRONOUS DEVICE INTERRUPT VECTOR ROUTING (THE IDT MAP)
+--------------------------------------------------------------------------------
+Asynchronous hardware pulses communicate directly with the CPU registers by mapping
+vector lines through the Interrupt Descriptor Table (IDT):
+
+Vector 0x00 - 0x1F : Intel CPU Core Exceptions (Division Zero, Page Faults, etc.)
+Vector 0x20 (IRQ 0): Programmable Interval Timer (System Clock Tick, 100Hz)
+Vector 0x21 (IRQ 1): Keyboard Controller Interface Bus (Motherboard Port 0x60)
+Vector 0x2E (IRQ 14): Primary Master IDE/ATA Storage Disk Bus Controller Line
+
+3. VIRTUAL PAGE ENTRY MEMORY GEOMETRY (THE VMM RINGS)
+--------------------------------------------------------------------------------
+FontaineOS handles memory virtualization via strict 4KB Page Frames:
+
+Page Directory Location: 0x9C000 (Physical RAM Allocation Base)
+Page Table Location     : 0x9D000 (Identity-Maps initial 4MB Memory Boundary)
+
+Flag Parameters:
+Bit 0 (Present) = 1  | Bit 1 (Read/Write) = 1 | Bit 2 (User/Supervisor) = 0
+Resulting Latch Attributes: 0x03 (Supervisor Mode, Read/Write Active)
+
+4. ASYNCHRONOUS STORAGE TRACKING (THE IDE DATA BUS LOGIC)
+--------------------------------------------------------------------------------
+Block storage synchronization runs directly within the raw hardware context loop:
+* Reads  : Issue Token 0x20 -> Wait BSY clear + DRQ latch -> Stream INSW to landing pad.
+* Writes : Issue Token 0x30 -> Flash OUTSW to controller bus -> Wait BSY clear safely.
+
+Memory landing pad translation units:
+Global Array Base Space: uint8_t disk_test_pad[512] (4-byte structural alignment)
+================================================================================
