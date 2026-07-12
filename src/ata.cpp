@@ -20,10 +20,20 @@ inline void insw(uint16_t port, void* addr, uint32_t count) {
 // Fixed: Static global hardware sector landing pad to completely avoid stack range collisions
 static uint8_t ata_io_buffer[512] __attribute__((aligned(4)));
 
+/*
+   Waits until the motherboard hard disk controller clears its Busy bit (BSY)
+   and raises its Data Request Ready flag (DRQ).
+   Fixed: Embedded explicit hardware memory barriers to completely break compiler register caching!
+*/
 static void ata_wait_ready() {
-    while (inb(ATA_STATUS) & ATA_STATUS_BSY);
-    while (!(inb(ATA_STATUS) & ATA_STATUS_DRQ));
+    while (inb(ATA_STATUS) & ATA_STATUS_BSY) {
+        asm volatile("" : : : "memory");
+    }
+    while (!(inb(ATA_STATUS) & ATA_STATUS_DRQ)) {
+        asm volatile("" : : : "memory");
+    }
 }
+
 
 extern "C" void ata_read_sector(uint32_t lba, uint8_t* buffer) {
     outb(ATA_DRIVE_HEAD, 0xE0 | ((lba >> 24) & 0x0F));
