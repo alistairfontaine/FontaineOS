@@ -88,106 +88,114 @@ static void scroll_screen() {
 extern "C" void keyboard_handler() {
     uint8_t scancode = inb(0x60);
 
-    if (!(scancode & 0x80)) {
-        char character = kbd_us[scancode];
+    /*
+       Fixed Scancode Gate:
+       If the scancode has bit 7 set, it is a key RELEASE (Break Code).
+       We return immediately and completely ignore it so it cannot double-trigger our loops!
+    */
+    if (scancode & 0x80) {
+        outb(0x20, 0x20); // Acknowledge interrupt to hardware PIC
+        return;
+    }
 
-        if (character == '\n') {
-            cmd_buffer[cmd_index] = '\0';
+    char character = kbd_us[scancode];
 
-            volatile char* video_memory = (volatile char*)0xB8000;
+    if (character == '\n') {
+        cmd_buffer[cmd_index] = '\0';
+
+        volatile char* video_memory = (volatile char*)0xB8000;
+        cursor_position = ((cursor_position / 160) + 1) * 160;
+        scroll_screen();
+
+        // Tracking flag token to isolate command validation loops cleanly
+        bool command_processed = false;
+
+        if (mystrcmp(cmd_buffer, "help") == true) {
+            const char* reply = ">> [FontaineOS Help: Commands are 'help', 'clear', and 'disktest']";
+            int i = 0;
+            while (reply[i] != '\0') {
+                video_memory[cursor_position] = reply[i];
+                video_memory[cursor_position + 1] = 0x0D; // Purple style font
+                cursor_position = cursor_position + 2;
+                i++;
+            }
             cursor_position = ((cursor_position / 160) + 1) * 160;
             scroll_screen();
-
-            // Tracking flag token to isolate command validation loops cleanly
-            bool command_processed = false;
-
-            if (mystrcmp(cmd_buffer, "help") == true) {
-                const char* reply = ">> [FontaineOS Help: Commands are 'help', 'clear', and 'disktest']";
-                int i = 0;
-                while (reply[i] != '\0') {
-                    video_memory[cursor_position] = reply[i];
-                    video_memory[cursor_position + 1] = 0x0D; // Purple style font
-                    cursor_position = cursor_position + 2;
-                    i++;
-                }
-                cursor_position = ((cursor_position / 160) + 1) * 160;
-                scroll_screen();
-                command_processed = true;
-            }
-            else if (mystrcmp(cmd_buffer, "clear") == true) {
-                for (int i = 1600; i < 4000; i = i + 2) {
-                    video_memory[i] = ' ';
-                    video_memory[i + 1] = 0x07;
-                }
-                cursor_position = 1600;
-                command_processed = true;
-            }
-            else if (mystrcmp(cmd_buffer, "disktest") == true) {
-                extern void ata_write_sector(uint32_t lba, const uint8_t* buffer);
-                extern void ata_read_sector(uint32_t lba, uint8_t* buffer);
-
-                for (int i = 0; i < 512; i++) disk_test_pad[i] = 0;
-
-                const char* secret = "SUCCESS: STREAMED DATA STRAIGHT FROM HARD DRIVE SECTOR PLATES!";
-                int len = 0;
-                while (secret[len] != '\0') {
-                    disk_test_pad[len] = (uint8_t)secret[len];
-                    len++;
-                }
-
-                // Send the stable global binary data segment out to Sector 1
-                ata_write_sector(1, disk_test_pad);
-
-                // Zero out the pad to prove the subsequent read is genuine
-                for (int i = 0; i < 512; i++) disk_test_pad[i] = 0;
-
-                // Stream Sector 1 directly back off the IDE bus into our global buffer
-                ata_read_sector(1, disk_test_pad);
-
-                volatile uint8_t* v_pad = (volatile uint8_t*)disk_test_pad;
-                int i = 0;
-                while (v_pad[i] != 0 && i < 512) {
-                    video_memory[cursor_position] = (char)v_pad[i];
-                    video_memory[cursor_position + 1] = 0x0D; // Purple text style
-                    cursor_position = cursor_position + 2;
-                    i++;
-                }
-                cursor_position = ((cursor_position / 160) + 1) * 160;
-                scroll_screen();
-                command_processed = true;
-            }
-            /* The Guarded Fallback catch-all error handler loop router */
-            else if (command_processed == false && cmd_buffer[0] != '\0') {
-                const char* error_reply = ">> Command not found! Type 'help' for options.";
-                int i = 0;
-                while (error_reply[i] != '\0') {
-                    video_memory[cursor_position] = error_reply[i];
-                    video_memory[cursor_position + 1] = 0x0D; // Purple style font
-                    cursor_position = cursor_position + 2;
-                    i++;
-                }
-                cursor_position = ((cursor_position / 160) + 1) * 160;
-                scroll_screen();
-            }
-
-            clear_shell_command();
+            command_processed = true;
         }
-        else if (character == '\b' && cmd_index > 0) {
-            cmd_index = cmd_index - 1;
-            cmd_buffer[cmd_index] = 0;
-            cursor_position = cursor_position - 2;
-            volatile char* video_memory = (volatile char*)0xB8000;
-            video_memory[cursor_position] = ' ';
+        else if (mystrcmp(cmd_buffer, "clear") == true) {
+            for (int i = 1600; i < 4000; i = i + 2) {
+                video_memory[i] = ' ';
+                video_memory[i + 1] = 0x07;
+            }
+            cursor_position = 1600;
+            command_processed = true;
         }
-        else if (character != 0 && cmd_index < 63) {
-            cmd_buffer[cmd_index] = character;
-            cmd_index = cmd_index + 1;
+        else if (mystrcmp(cmd_buffer, "disktest") == true) {
+            extern void ata_write_sector(uint32_t lba, const uint8_t* buffer);
+            extern void ata_read_sector(uint32_t lba, uint8_t* buffer);
 
-            volatile char* video_memory = (volatile char*)0xB8000;
-            video_memory[cursor_position] = character;
-            video_memory[cursor_position + 1] = 0x0E; // Yellow font
-            cursor_position = cursor_position + 2;
+            for (int i = 0; i < 512; i++) disk_test_pad[i] = 0;
+
+            const char* secret = "SUCCESS: STREAMED DATA STRAIGHT FROM HARD DRIVE SECTOR PLATES!";
+            int len = 0;
+            while (secret[len] != '\0') {
+                disk_test_pad[len] = (uint8_t)secret[len];
+                len++;
+            }
+
+            // Send the stable global binary data segment out to Sector 1
+            ata_write_sector(1, disk_test_pad);
+
+            // Zero out the pad to prove the subsequent read is genuine
+            for (int i = 0; i < 512; i++) disk_test_pad[i] = 0;
+
+            // Stream Sector 1 directly back off the IDE bus into our global buffer
+            ata_read_sector(1, disk_test_pad);
+
+            volatile uint8_t* v_pad = (volatile uint8_t*)disk_test_pad;
+            int i = 0;
+            while (v_pad[i] != 0 && i < 512) {
+                video_memory[cursor_position] = (char)v_pad[i];
+                video_memory[cursor_position + 1] = 0x0D; // Purple text style
+                cursor_position = cursor_position + 2;
+                i++;
+            }
+            cursor_position = ((cursor_position / 160) + 1) * 160;
+            scroll_screen();
+            command_processed = true;
         }
+        /* Fixed: Explicitly verify character element index slot 0 to avoid pointer comparison leaks */
+        else if (command_processed == false && cmd_buffer[0] != '\0') {
+            const char* error_reply = ">> Command not found! Type 'help' for options.";
+            int i = 0;
+            while (error_reply[i] != '\0') {
+                video_memory[cursor_position] = error_reply[i];
+                video_memory[cursor_position + 1] = 0x0D; // Purple style font
+                cursor_position = cursor_position + 2;
+                i++;
+            }
+            cursor_position = ((cursor_position / 160) + 1) * 160;
+            scroll_screen();
+        }
+
+        clear_shell_command();
+    }
+    else if (character == '\b' && cmd_index > 0) {
+        cmd_index = cmd_index - 1;
+        cmd_buffer[cmd_index] = 0;
+        cursor_position = cursor_position - 2;
+        volatile char* video_memory = (volatile char*)0xB8000;
+        video_memory[cursor_position] = ' ';
+    }
+    else if (character != 0 && cmd_index < 63) {
+        cmd_buffer[cmd_index] = character;
+        cmd_index = cmd_index + 1;
+
+        volatile char* video_memory = (volatile char*)0xB8000;
+        video_memory[cursor_position] = character;
+        video_memory[cursor_position + 1] = 0x0E; // Yellow font
+        cursor_position = cursor_position + 2;
     }
     outb(0x20, 0x20);
 }
