@@ -7,8 +7,7 @@ inline uint8_t inb(uint16_t port) {
     return ret;
 }
 
-// Fixed: Shift the initial input prompt down to Row 10 (offset index 1600 bytes)
-// to keep it entirely separate from our system notifications at the top!
+// Initial prompt line starts at Row 10 (1600 bytes offset)
 uint32_t cursor_position = 1600;
 
 char cmd_buffer[64];
@@ -23,11 +22,6 @@ const char kbd_us[128] = {
  '\\', 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/',   0, '*',   0, ' '
 };
 
-/*
-   Fixed Linkage Matrix:
-   We explicitly bind these hooks to 'extern "C"' so our shell loop thread
-   can accurately resolve their memory addresses across compilation boundaries!
-*/
 extern "C" {
     char* get_shell_command() {
         if (command_ready_flag == 1) {
@@ -54,11 +48,10 @@ extern "C" void keyboard_handler() {
             cmd_buffer[cmd_index] = '\0';
             command_ready_flag = 1;
 
-            // FIX: Removed the cursor advancement math line from here!
-            // The shell thread (task_beta_routine) now handles advancing the row cleanly.
+            // RESTORED: Move the cursor position index forward immediately!
+            cursor_position = ((cursor_position / 160) + 1) * 160;
         }
         else if (character == '\b' && cmd_index > 0) {
-            // Handle Backspace operations safely
             cmd_index = cmd_index - 1;
             cmd_buffer[cmd_index] = 0;
             cursor_position = cursor_position - 2;
@@ -66,13 +59,12 @@ extern "C" void keyboard_handler() {
             video_memory[cursor_position] = ' ';
         }
         else if (character != 0 && cmd_index < 63) {
-            // Append the fresh letter into our active tracking array
             cmd_buffer[cmd_index] = character;
             cmd_index = cmd_index + 1;
 
             volatile char* video_memory = (volatile char*)0xB8000;
             video_memory[cursor_position] = character;
-            video_memory[cursor_position + 1] = 0x0E; // Brilliant Yellow style font
+            video_memory[cursor_position + 1] = 0x0E; // Yellow font
             cursor_position = cursor_position + 2;
         }
     }
