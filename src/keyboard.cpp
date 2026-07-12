@@ -1,8 +1,25 @@
 #include "keyboard.h"
 #include "timer.h"
 
-// Reference our global string utility living inside kernel.cpp
-extern bool mystrcmp(const char* str1, const char* str2);
+/*
+   A lightweight, bare-metal string comparison utility.
+   Bypasses cross-module linkage optimization barriers.
+*/
+/*
+   A lightweight, bare-metal string comparison utility.
+   Fixed: Marked static to prevent global linker namespace collisions!
+*/
+static bool mystrcmp(const char* str1, const char* str2) {
+    int i = 0;
+    while (str1[i] != '\0' && str2[i] != '\0') {
+        if (str1[i] != str2[i]) {
+            return false;
+        }
+        i++;
+    }
+    return (str1[i] == '\0' && str2[i] == '\0');
+}
+
 
 inline uint8_t inb(uint16_t port) {
     uint8_t ret;
@@ -12,6 +29,7 @@ inline uint8_t inb(uint16_t port) {
 
 // Initial prompt line starts at Row 10 (1600 bytes offset)
 uint32_t cursor_position = 1600;
+
 
 char cmd_buffer[64];
 uint32_t cmd_index = 0;
