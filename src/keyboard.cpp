@@ -63,7 +63,8 @@ extern "C" void keyboard_handler() {
                safely protected from thread context switches or memory cache drift!
             */
             if (mystrcmp(cmd_buffer, "help") == true) {
-                const char* reply = ">> [FontaineOS Terminal Help: Commands are 'help' and 'clear']";
+                // Updated menu guidelines string tracking
+                const char* reply = ">> [FontaineOS Help: Commands are 'help', 'clear', and 'disktest']";
                 int i = 0;
                 while (reply[i] != '\0') {
                     video_memory[cursor_position] = reply[i];
@@ -74,13 +75,52 @@ extern "C" void keyboard_handler() {
                 cursor_position = ((cursor_position / 160) + 1) * 160;
             }
             else if (mystrcmp(cmd_buffer, "clear") == true) {
-                // Clear text matrices from Row 10 down to the bottom
                 for (int i = 1600; i < 4000; i = i + 2) {
                     video_memory[i] = ' ';
                     video_memory[i + 1] = 0x07;
                 }
                 cursor_position = 1600;
             }
+            /*
+               The Live Hard Drive Controller Test Gate:
+               Explicitly imports our new hardware functions from src/ata.cpp.
+            */
+            else if (mystrcmp(cmd_buffer, "disktest") == true) {
+                extern void ata_write_sector(uint32_t lba, const uint8_t* buffer);
+                extern void ata_read_sector(uint32_t lba, uint8_t* buffer);
+
+                // Allocate a local 512-byte temporary block allocation on our stack array
+                uint8_t test_buffer[512];
+                for (int i = 0; i < 512; i++) test_buffer[i] = 0;
+
+                // Load our message string directly into the first bytes of the container
+                const char* secret = "SUCCESS: STREAMED DATA STRAIGHT FROM HARD DRIVE SECTOR PLATES!";
+                int len = 0;
+                while (secret[len] != '\0') {
+                    test_buffer[len] = (uint8_t)secret[len];
+                    len++;
+                }
+
+                // Push our block straight onto sector 1 of the virtual hard drive
+                ata_write_sector(1, test_buffer);
+
+                // Wipe our buffer completely to guarantee we read fresh data from the disk
+                for (int i = 0; i < 512; i++) test_buffer[i] = 0;
+
+                // Pull Sector 1 back off the hard disk controller traces right into RAM
+                ata_read_sector(1, test_buffer);
+
+                // Print the verification payload response below our command prompt
+                int i = 0;
+                while (test_buffer[i] != 0 && i < 512) {
+                    video_memory[cursor_position] = (char)test_buffer[i];
+                    video_memory[cursor_position + 1] = 0x0D; // Purple text style
+                    cursor_position = cursor_position + 2;
+                    i++;
+                }
+                cursor_position = ((cursor_position / 160) + 1) * 160;
+            }
+
             /* Fallback router: If it doesn't match our valid commands, guide the user */
             else if (cmd_buffer[0] != '\0') {
                 const char* error_reply = ">> Command not found! Type 'help' for options.";
