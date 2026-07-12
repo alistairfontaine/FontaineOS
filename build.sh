@@ -30,9 +30,9 @@ if [ $? -eq 0 ]; then
     git commit -m "feat: master pipeline automation build cycle execution at ${TIMESTAMP}"
     git push origin main
 
-    # 5. Boot up the hardware virtualization display console
+    # 5. Boot up the hardware virtualization display console asynchronously
     echo "🚀 Booting FontaineOS inside QEMU Emulation Core..."
-    make run
+    make run &
 else
     echo "❌ CRITICAL: Compilation failed. Aborting Git tracking and execution steps."
     exit 1

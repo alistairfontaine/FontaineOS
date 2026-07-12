@@ -28,17 +28,8 @@ void task_alpha_routine() {
 }
 
 /*
-   Thread Task Beta (Our Live Kernel Command Shell Module!).
-   Monitors our global keyboard buffer. If you type 'help' or 'clear',
-   the kernel executes the corresponding custom script lines in real-time!
-*/
-/*
    A lightweight, bare-metal string comparison utility.
-   Returns true if both character pointers contain the exact same text string.
-*/
-/*
-   A lightweight, bare-metal string comparison utility.
-   Fixed: Enforces strict AND logic bounds so matching stops exactly at the null terminator!
+   Fixed: Enforces strict index checking and stops comparison directly at the null byte!
 */
 bool mystrcmp(const char* str1, const char* str2) {
     int i = 0;
@@ -48,10 +39,8 @@ bool mystrcmp(const char* str1, const char* str2) {
         }
         i++;
     }
-    // Double check that both strings terminated at the exact same index length position
     return (str1[i] == '\0' && str2[i] == '\0');
 }
-
 
 /*
    Thread Task Beta (Our Live Kernel Command Shell Module!).
@@ -88,24 +77,43 @@ void task_beta_routine() {
             if (mystrcmp(local_cmd, "help") == true) {
                 const char* reply = ">> [FontaineOS Terminal Help: Commands are 'help' and 'clear']";
                 int i = 0;
+
                 while (reply[i] != '\0') {
-                    video_memory[1760 + (i * 2)] = reply[i]; // Print on Row 11
-                    video_memory[1760 + (i * 2) + 1] = 0x0D; // Purple style
+                    video_memory[cursor_position] = reply[i];
+                    video_memory[cursor_position + 1] = 0x0D; // Purple style font
+                    cursor_position = cursor_position + 2;
                     i++;
                 }
+
+                // Advance text cursor cleanly to the start of the next blank row line space
+                cursor_position = ((cursor_position / 160) + 1) * 160;
             }
             else if (mystrcmp(local_cmd, "clear") == true) {
+                // Clear text matrices from Row 10 down to the bottom of the visible screen boundaries
                 for (int i = 1600; i < 4000; i = i + 2) {
                     video_memory[i] = ' ';
                     video_memory[i + 1] = 0x07; // Default style reset
                 }
                 cursor_position = 1600;
             }
+            else {
+                // Handle unknown input command exceptions gracefully
+                const char* error_reply = ">> Unknown command. Type 'help' or 'clear'.";
+                int i = 0;
+                while (error_reply[i] != '\0') {
+                    video_memory[cursor_position] = error_reply[i];
+                    video_memory[cursor_position + 1] = 0x04; // Red style error font
+                    cursor_position = cursor_position + 2;
+                    i++;
+                }
+                cursor_position = ((cursor_position / 160) + 1) * 160;
+            }
         }
 
         for (uint32_t delay = 0; delay < 2000000; delay++) { asm volatile(""); }
     }
 }
+
 
 
 
