@@ -34,41 +34,43 @@ void task_alpha_routine() {
 */
 void task_beta_routine() {
     volatile char* video_memory = (volatile char*)0xB8000;
+    extern uint32_t cursor_position; // Import our live keyboard screen index pointer
 
     while (true) {
-        // Query if our keyboard engine has caught a fresh instruction string command
         char* command = get_shell_command();
 
         if (command != nullptr) {
             /*
-               Explicit character array parsing checking individual indices.
+               Strict string boundary evaluation.
+               We check the letters AND ensure the next byte is the string null terminator.
             */
-            if (command[0] == 'h' && command[1] == 'e' && command[2] == 'l' && command[3] == 'p') {
+            if (command[0] == 'h' && command[1] == 'e' && command[2] == 'l' && command[3] == 'p' && command[4] == '\0') {
                 const char* reply = ">> [FontaineOS Terminal Help: Commands are 'help' and 'clear']";
                 int i = 0;
                 while (reply[i] != '\0') {
-                    // Fixed: Offset shifted to 1760 (Row 11) to print below your inputs
-                    video_memory[1760 + (i * 2)] = reply[i];
-                    video_memory[1760 + (i * 2) + 1] = 0x0D; // Purple output style
+                    video_memory[1760 + (i * 2)] = reply[i]; // Print on Row 11
+                    video_memory[1760 + (i * 2) + 1] = 0x0D; // Purple style
                     i++;
                 }
             }
-            // Check command target index: Custom 'clear' command match routing
-            else if (command[0] == 'c' && command[1] == 'l' && command[2] == 'e' && command[3] == 'a' && command[4] == 'r') {
-                // Fixed: Loop now starts at 1600 to clear inputs without erasing the cyan label at 1440
+            /* Strict 5-letter match validation for clear command string profiles */
+            else if (command[0] == 'c' && command[1] == 'l' && command[2] == 'e' && command[3] == 'a' && command[4] == 'r' && command[5] == '\0') {
+                // Wipe the entire display interface space below our cyan prompt label
                 for (int i = 1600; i < 4000; i = i + 2) {
                     video_memory[i] = ' ';
-                    video_memory[i + 1] = 0x07;
+                    video_memory[i + 1] = 0x07; // Default style reset
                 }
+                // Snap our hardware text layout printing tracker back to the start of Row 10
+                cursor_position = 1600;
             }
 
-            // Wipe our buffer matrices clean so we can take the next prompt line instruction
             clear_shell_command();
         }
 
         for (uint32_t delay = 0; delay < 2000000; delay++) { asm volatile(""); }
     }
 }
+
 
 extern "C" void kernel_main() {
     /* Step 1: Initialize the Core System Engine Segments */
