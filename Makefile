@@ -52,7 +52,8 @@ src/ata.o: src/ata.cpp
 
 # Fixed: Pass our newly generated disk image to QEMU's primary master IDE bus line!
 run: bin/fontaineos.bin bin/disk.img
-	qemu-system-i386 -kernel bin/fontaineos.bin -hda bin/disk.img
+	qemu-system-i386 -kernel bin/fontaineos.bin -drive file=bin/disk.img,format=raw,index=0,media=disk
+
 
 clean:
 	rm -f src/*.o bin/*.bin bin/disk.img
