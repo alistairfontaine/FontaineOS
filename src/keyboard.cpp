@@ -7,9 +7,10 @@ inline uint8_t inb(uint16_t port) {
     return ret;
 }
 
-uint32_t cursor_position = 160;
+// Fixed: Shift the initial input prompt down to Row 10 (offset index 1600 bytes)
+// to keep it entirely separate from our system notifications at the top!
+uint32_t cursor_position = 1600;
 
-// Allocate a live memory buffer array to track what you are typing
 char cmd_buffer[64];
 uint32_t cmd_index = 0;
 volatile uint8_t command_ready_flag = 0;
@@ -31,6 +32,11 @@ char* get_shell_command() {
 
 void clear_shell_command() {
     for (int i = 0; i < 64; i++) cmd_buffer[i] = 0;
+
+    /*
+       Fixed: Force the array tracking index completely back to 0
+       so your next command starts fresh at the beginning of the buffer string!
+    */
     cmd_index = 0;
     command_ready_flag = 0;
 }
@@ -42,15 +48,15 @@ extern "C" void keyboard_handler() {
         char character = kbd_us[scancode];
 
         if (character == '\n') {
-            // User hit ENTER. Lock the buffer and flag that a command is ready to parse!
+            // User hit ENTER. Lock the buffer string segment.
             cmd_buffer[cmd_index] = '\0';
             command_ready_flag = 1;
 
-            // Advance cursor to the start of the next blank row line
+            // Advance text cursor cleanly to the start of the next blank row line space
             cursor_position = ((cursor_position / 160) + 1) * 160;
         }
         else if (character == '\b' && cmd_index > 0) {
-            // Handle Backspace operations
+            // Handle Backspace operations safely
             cmd_index = cmd_index - 1;
             cmd_buffer[cmd_index] = 0;
             cursor_position = cursor_position - 2;
@@ -58,13 +64,13 @@ extern "C" void keyboard_handler() {
             video_memory[cursor_position] = ' ';
         }
         else if (character != 0 && cmd_index < 63) {
-            // Append the fresh letter straight into our active tracking array
+            // Append the fresh letter into our active tracking array
             cmd_buffer[cmd_index] = character;
             cmd_index = cmd_index + 1;
 
             volatile char* video_memory = (volatile char*)0xB8000;
             video_memory[cursor_position] = character;
-            video_memory[cursor_position + 1] = 0x0E; // Yellow characters
+            video_memory[cursor_position + 1] = 0x0E; // Brilliant Yellow style font
             cursor_position = cursor_position + 2;
         }
     }

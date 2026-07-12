@@ -19,9 +19,9 @@ void task_alpha_routine() {
         count_alpha = count_alpha + 1;
         char state_char = '0' + (count_alpha % 10);
 
-        // Fixed: Explicit bracket offsets to write to row 3 (offset index 320)
-        video_memory[320] = state_char;
-        video_memory[321] = 0x0A; // Light Green style ticker
+        // Fixed: Offset shifted to 430 so the ticking digit sits at the end of the message text!
+        video_memory[430] = state_char;
+        video_memory[431] = 0x0A; // Light Green style ticker
 
         for (uint32_t delay = 0; delay < 10000000; delay++) { asm volatile(""); }
     }
@@ -108,8 +108,9 @@ extern "C" void kernel_main() {
 
     i = 0;
     while (msg_shell[i] != '\0') {
-        video_memory[640 + (i * 2)] = msg_shell[i];
-        video_memory[640 + (i * 2) + 1] = 0x0B; // Light Cyan style on Row 5
+        // Fixed: Shifted down to offset 1440 (Row 9) so it hovers perfectly above our typing line!
+        video_memory[1440 + (i * 2)] = msg_shell[i];
+        video_memory[1440 + (i * 2) + 1] = 0x0B; // Light Cyan style on Row 9
         i++;
     }
 
