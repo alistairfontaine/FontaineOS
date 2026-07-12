@@ -32,44 +32,67 @@ void task_alpha_routine() {
    Monitors our global keyboard buffer. If you type 'help' or 'clear',
    the kernel executes the corresponding custom script lines in real-time!
 */
+/*
+   A lightweight, bare-metal string comparison utility.
+   Returns true if both character pointers contain the exact same text string.
+*/
+bool mystrcmp(const char* str1, const char* str2) {
+    int i = 0;
+    while (str1[i] != '\0' || str2[i] != '\0') {
+        if (str1[i] != str2[i]) {
+            return false;
+        }
+        i++;
+    }
+    return true;
+}
+
+/*
+   Thread Task Beta (Our Live Kernel Command Shell Module!).
+   Monitors our global keyboard buffer. If you type 'help' or 'clear',
+   the kernel executes the corresponding custom script lines in real-time!
+*/
 void task_beta_routine() {
     volatile char* video_memory = (volatile char*)0xB8000;
     extern uint32_t cursor_position; // Import our live keyboard screen index pointer
 
     while (true) {
+        // Query if our keyboard engine has caught a fresh instruction string command
         char* command = get_shell_command();
 
         if (command != nullptr) {
             /*
-               Strict string boundary evaluation.
-               We check the letters AND ensure the next byte is the string null terminator.
+               Direct pointer byte comparison.
+               Bypasses compiler optimization layers completely.
             */
-            if (command[0] == 'h' && command[1] == 'e' && command[2] == 'l' && command[3] == 'p' && command[4] == '\0') {
+            if (mystrcmp(command, "help")) {
                 const char* reply = ">> [FontaineOS Terminal Help: Commands are 'help' and 'clear']";
                 int i = 0;
                 while (reply[i] != '\0') {
-                    video_memory[1760 + (i * 2)] = reply[i]; // Print on Row 11
-                    video_memory[1760 + (i * 2) + 1] = 0x0D; // Purple style
+                    video_memory[1760 + (i * 2)] = reply[i]; // Print on row 11
+                    video_memory[1760 + (i * 2) + 1] = 0x0D; // Purple output style
                     i++;
                 }
             }
-            /* Strict 5-letter match validation for clear command string profiles */
-            else if (command[0] == 'c' && command[1] == 'l' && command[2] == 'e' && command[3] == 'a' && command[4] == 'r' && command[5] == '\0') {
-                // Wipe the entire display interface space below our cyan prompt label
+            // Check command target index: Custom 'clear' command match routing
+            else if (mystrcmp(command, "clear")) {
+                // Clear out the bottom half rows of our display grid frame arrays
                 for (int i = 1600; i < 4000; i = i + 2) {
                     video_memory[i] = ' ';
-                    video_memory[i + 1] = 0x07; // Default style reset
+                    video_memory[i + 1] = 0x07;
                 }
                 // Snap our hardware text layout printing tracker back to the start of Row 10
                 cursor_position = 1600;
             }
 
+            // Wipe our buffer matrices clean so we can take the next prompt line instruction
             clear_shell_command();
         }
 
         for (uint32_t delay = 0; delay < 2000000; delay++) { asm volatile(""); }
     }
 }
+
 
 
 extern "C" void kernel_main() {
