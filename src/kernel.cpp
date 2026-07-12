@@ -131,7 +131,6 @@ void task_beta_routine() {
 
 
 
-
 extern "C" void kernel_main() {
     /* Step 1: Initialize the Core System Engine Segments */
     init_gdt();
@@ -141,8 +140,15 @@ extern "C" void kernel_main() {
     init_vmm();
     init_heap(0x300000, 256);
 
+    /*
+       Fixed: Explicitly initialize and unlock the keyboard device driver
+       so hardware port 0x60 can stream data vectors cleanly!
+    */
+    init_keyboard();
+
     /* Step 2: Initialize the Multitasking Scheduler Layer */
     init_multitasking();
+
 
     /* Step 3: Spawn our parallel runtime threads */
     create_thread(task_alpha_routine);

@@ -23,6 +23,14 @@ const char kbd_us[128] = {
 };
 
 extern "C" {
+    /*
+       Fixed: Added our missing initialization module.
+       Clears our internal tracking states during the boot timeline.
+    */
+    void init_keyboard() {
+        clear_shell_command();
+    }
+
     char* get_shell_command() {
         if (command_ready_flag == 1) {
             return cmd_buffer;
@@ -36,6 +44,7 @@ extern "C" {
         command_ready_flag = 0;
     }
 }
+
 
 extern "C" void keyboard_handler() {
     uint8_t scancode = inb(0x60);
