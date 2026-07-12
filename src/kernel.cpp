@@ -96,6 +96,21 @@ void task_beta_routine() {
                 }
                 cursor_position = 1600;
             }
+            /* The Fallback Catch-All Router to Resend Help Instructions if commands don't match */
+            else if (local_cmd[0] != '\0') {
+                const char* error_reply = ">> Command not found! Type 'help' for options.";
+                int i = 0;
+
+                while (error_reply[i] != '\0') {
+                    video_memory[cursor_position] = error_reply[i];
+                    video_memory[cursor_position + 1] = 0x0D; // Purple style font
+                    cursor_position = cursor_position + 2;
+                    i++;
+                }
+
+                cursor_position = ((cursor_position / 160) + 1) * 160;
+            }
+
             else {
                 // Handle unknown input command exceptions gracefully
                 const char* error_reply = ">> Unknown command. Type 'help' or 'clear'.";
