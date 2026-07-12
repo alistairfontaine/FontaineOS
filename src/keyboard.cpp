@@ -35,6 +35,13 @@ char cmd_buffer[64];
 uint32_t cmd_index = 0;
 volatile uint8_t command_ready_flag = 0;
 
+/*
+   Fixed Buffer Allocation:
+   Explicitly appending array brackets to allocate exactly 512 bytes
+   of continuous binary storage data space!
+*/
+uint8_t disk_test_pad[512] __attribute__((aligned(4)));
+
 /* US Keyboard Map Index */
 const char kbd_us[128] = {
     0,  27, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b',
@@ -103,47 +110,40 @@ extern "C" void keyboard_handler() {
                The Live Hard Drive Controller Test Gate:
                Explicitly imports our new hardware functions from src/ata.cpp.
             */
-                        else if (mystrcmp(cmd_buffer, "disktest") == true) {
+            else if (mystrcmp(cmd_buffer, "disktest") == true) {
                 extern void ata_write_sector(uint32_t lba, const uint8_t* buffer);
                 extern void ata_read_sector(uint32_t lba, uint8_t* buffer);
 
-                /*
-                   Fixed Buffer Allocation:
-                   Explicitly attaching array brackets to reserve exactly 512 bytes
-                   of stack space so our disk string doesn't smash our memory tracks!
-                */
-                uint8_t test_buffer[512];
-                for (int i = 0; i < 512; i++) test_buffer[i] = 0;
+                // Fixed: Nested extern statement stripped away to reference our top global scope space
+                for (int i = 0; i < 512; i++) disk_test_pad[i] = 0;
 
-                // Load our message string directly into the first bytes of the container
+
                 const char* secret = "SUCCESS: STREAMED DATA STRAIGHT FROM HARD DRIVE SECTOR PLATES!";
                 int len = 0;
                 while (secret[len] != '\0') {
-                    test_buffer[len] = (uint8_t)secret[len];
+                    disk_test_pad[len] = (uint8_t)secret[len];
                     len++;
                 }
 
-                // Push our block straight onto sector 1 of the virtual hard drive
-                // Fixed: Pass the clean array handle directly to satisfy block constraints
-                ata_write_sector(1, test_buffer);
+                // Send the stable global binary data segment out to Sector 1
+                ata_write_sector(1, disk_test_pad);
 
-                for (int i = 0; i < 512; i++) test_buffer[i] = 0;
+                // Zero out the pad to prove the subsequent read is genuine
+                for (int i = 0; i < 512; i++) disk_test_pad[i] = 0;
 
-                // Fixed: Pass the clean array handle directly for raw byte sector extraction
-                ata_read_sector(1, test_buffer);
+                // Stream Sector 1 directly back off the IDE bus into our global buffer
+                ata_read_sector(1, disk_test_pad);
 
-
-
-                // Print the verification payload response below our command prompt
                 int i = 0;
-                while (test_buffer[i] != 0 && i < 512) {
-                    video_memory[cursor_position] = (char)test_buffer[i];
+                while (disk_test_pad[i] != 0 && i < 512) {
+                    video_memory[cursor_position] = (char)disk_test_pad[i];
                     video_memory[cursor_position + 1] = 0x0D; // Purple text style
                     cursor_position = cursor_position + 2;
                     i++;
                 }
                 cursor_position = ((cursor_position / 160) + 1) * 160;
             }
+
 
             /* Fallback router: If it doesn't match our valid commands, guide the user */
             else if (cmd_buffer[0] != '\0') {
